@@ -34,6 +34,7 @@ MirrorURL: http://http.debian.net/debian/
 #MirrorURL: http://smaug.datalad.org:3142/debian/
 
 %environment:
+    # for some reason seems to be not present in %post env with 2.6.1-dist
     ENVIRONMENT_FREEZE_DATE=20200209
     ENVIRONMENT_VERSION=10.$ENVIRONMENT_FREEZE_DATE.1
 
@@ -69,7 +70,8 @@ MirrorURL: http://http.debian.net/debian/
     chmod a+r -R /etc/apt
     apt-get update -q --no-allow-insecure-repositories
     apt-get install -y neurodebian-freeze
-    nd_freeze $(ENVIRONMENT_FREEZE_DATE)
+    #export | grep ENV
+    nd_freeze 20200209 # $ENVIRONMENT_FREEZE_DATE
     # Needed for debian-security APT
     # echo 'Acquire::Check-Valid-Until "0";' > /etc/apt/apt.conf.d/10no--check-valid-until
     apt-get update --no-allow-insecure-repositories
@@ -77,7 +79,7 @@ MirrorURL: http://http.debian.net/debian/
     # Main installations
     apt-get -y install eatmydata 
     eatmydata apt-get -y build-dep datalad
-    eatmydata apt-get -y install git vim less python{,3}-{pip,virtualenv} python-pytest strace gdb valgrind time ncdu gnupg curl procps
+    eatmydata apt-get -y install git vim less python3-pip python3-virtualenv python3-pytest strace gdb valgrind time ncdu gnupg curl procps
     
     chmod a+rX -R /etc/apt/sources.list.d
     # cleaning /tmp that thoroughly might have side effects 
