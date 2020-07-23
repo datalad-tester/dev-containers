@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Somehow PS1 might be unbound
+: ${PS1:=> }
 
 if [ ! -e "setup.py" ]; then
    echo "E: Intended to be ran within a folder having setup.py" >&2
