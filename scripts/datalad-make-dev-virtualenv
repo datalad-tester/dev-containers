@@ -1,0 +1,21 @@
+#!/bin/bash
+
+
+if [ ! -e "setup.py" ]; then
+   echo "E: Intended to be ran within a folder having setup.py" >&2
+   exit 1
+fi
+
+set -eu
+
+deactivate 2>/dev/null || :
+
+SING_ENVVER=$(echo ${SINGULARITY_NAME:-} | sed -e 's,^[^0-9][^0-9]*,sing-,g' -e 's,\.[^.]*$,,g')
+py=3; 
+d=venvs/${SING_ENVVER}dev$py; 
+rm -rf "$d"; 
+python$py -m virtualenv --python=python$py  --system-site-packages $d 
+source $d/bin/activate
+pip3 install -e .
+
+echo "I: Run  source $d/bin/activate  to activate this virtualenv"
