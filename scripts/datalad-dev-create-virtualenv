@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Somehow PS1 might be unbound
-: ${PS1:=> }
+: "${PS1:=> }"
 
 if [ ! -e "setup.py" ]; then
    echo "E: Intended to be ran within a folder having setup.py" >&2
@@ -12,12 +12,16 @@ set -eu
 
 deactivate 2>/dev/null || :
 
-SING_ENVVER=$(echo ${SINGULARITY_NAME:-} | sed -e 's,^[^0-9][^0-9]*,sing-,g' -e 's,\.[^.]*$,,g')
 py=3; 
-d=venvs/${SING_ENVVER}dev$py; 
+if [ -n "${DLDEV_ENVIRONMENT_VERSION:-}" ]; then
+    d=venvs/${DLDEV_ENVIRONMENT_VERSION}
+else
+    d=venvs/dev$py;
+fi
+
 rm -rf "$d"; 
 python$py -m virtualenv --python=python$py  --system-site-packages $d 
-source $d/bin/activate
+source "$d/bin/activate"
 pip3 install -e .
 
 echo "I: Run  source $d/bin/activate  to activate this virtualenv"
