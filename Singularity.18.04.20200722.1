@@ -1,0 +1,113 @@
+# Copyright (c) 2018, Yaroslav O. Halchenko. All rights reserved. MIT license
+#
+# The purpose of the Singularity environment is to provide a relatively full
+# suite of tools provided primarily by Debian/NeuroDebian for runnin various
+# neuroimaging analyses.
+#
+# Notes:
+#  - Due to  https://github.com/singularityware/singularity/issues/471
+#    bootstrapping leads to non-usable/non-removable-without-reboot
+#    image due to some rogue run away processes.
+#    This line could help to kill them but should be used with caution
+#    since could kill other unrelated processes
+#
+#      grep -l loop /proc/*/mountinfo | sed -e 's,/proc/\(.*\)/.*,\1,g' | while read pid; do sudo kill $pid; done
+#
+# Set size to be 12000 on singularity-hub
+#
+# Changelog
+# ---------
+# 18.04.20200722.1
+#  - mutated over to xenial to see if we can get hangs etc
+#  - made git-annex installed but "hidden" away
+#  - more build-depends and devel tools for datalad
+#  - messing around with env variables
+# 10.20200209.1
+#  - freezing to a new date.  Currently datalad already demands 7.20190503
+#    git-annex so previous one cannot potentially have it.  not sure how
+#    benchmarks were "running" without failing in that older environment
+#    Current version of annex would be 7.20190819+git2-g908476a9b-1~ndall+1
+#    and cannot be newer since newer ones kept causing datalad tests to fail 
+#    or to hang
+# 10.20190322.1
+#  - freezing using WiP nd_freeze to the fixed day (2nd portion of the version)
+#    Provided git-annex 7.20190129
+
+BootStrap: docker
+From: neurodebian:nd18.04
+#MirrorURL: http://smaug.datalad.org:3142/debian/
+
+%environment:
+    DLDEV_ENVIRONMENT_FREEZE_DATE=20200722
+    DLDEV_ENVIRONMENT_VERSION=nd18.04.$DLDEV_ENVIRONMENT_FREEZE_DATE.1
+    export DLDEV_ENVIRONMENT_VERSION DLDEV_ENVIRONMENT_FREEZE_DATE
+
+%files:
+    scripts/datalad-dev-create-virtualenv /usr/local/bin
+
+# so if image is executed we just enter the environment
+%runscript
+    . /.singularity.d/env/90-environment.sh
+    echo ""
+    echo "Welcome to the DataLad (Debian) development $DLDEV_ENVIRONMENT_VERSION environment."
+    echo ""
+    echo "Notes:"
+    echo " - git-annex-standalone is installed, but symlinks moved under /usr/bin-git-annex -"
+    echo "   adjust your PATH if you would like to use that one:"
+    echo '   export PATH=/usr/bin-git-annex:$PATH'
+    echo " - datalad-dev-create-virtualenv  command would create a virtualenv if ran within"
+    echo "   folder containing setup.py"
+    echo " - majority of python etc dependencies are installed systemwide"
+    echo " - locales package is installed. Only en_US.UTF-8 locale was generated"
+    echo " - you might prefer to use --cleanenv option to singularity to ensure not"
+    echo "   leaking external environment variables"
+    echo ""
+    /bin/bash "$@"
+
+%setup
+    set -eu
+    export | grep SING
+    echo "Setting up the environment"
+
+    v=`git describe --tags --match sing-\* | sed -e 's,^sing-,,g'`; \
+      python -c "import json, os; f='$SINGULARITY_ROOTFS/.singularity.d/labels.json'; j=json.load(open(f)) if os.path.exists(f) else {}; j['SINGULARITY_IMAGE_VERSION']='$v' or '0.0.unknown'; json.dump(j, open(f,'w'),indent=2)"
+    chmod a+r "$SINGULARITY_ROOTFS/.singularity.d/labels.json"
+
+%post
+    PS4='> '
+    set -x
+    . /.singularity.d/env/90-environment.sh
+
+    nd_freeze $DLDEV_ENVIRONMENT_FREEZE_DATE
+    # For build-dep - but might need tune up to avoid duplicates
+    #sed -i -e 's,^deb \(.*\),deb \1\ndeb-src \1,g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list
+    apt-get update
+ 
+    # Main installations
+    apt-get -y install eatmydata 
+    # Needs more recent debhelper which 
+    apt-cache policy debhelper
+    # Do install git-annex-standalone  but we will move its symlinks into a dedicated folder so we could
+    # practice with (by adjusting PATH) or without preinstalled git-annex-standalone
+    eatmydata apt-get -y install git-annex-standalone
+    umask 022
+    mkdir -p /usr/bin-git-annex
+    mv /usr/bin/git-annex /usr/bin/git-annex-shell /usr/bin-git-annex
+    # xenial is too old, we do not have any recent builds for it, so wewill just install build-dependencies
+    # manually
+    eatmydata apt-get -y install help2man patool p7zip-full python3-all python3-appdirs python3-argcomplete python3-dateutil python3-exif python3-fasteners python3-iso8601 python3-jsmin python3-git python3-github python3-html5lib python3-httpretty python3-humanize python3-keyrings.alt  python3-keyring python3-secretstorage python3-nose python3-mock python3-msgpack python3-mutagen python3-nose python3-pil python3-pyperclip python3-requests python3-setuptools python3-simplejson python3-six python3-tqdm python3-vcr python3-whoosh python3-wrapt python3-venv python3-virtualenv python3-sphinx python3-sphinx-rtd-theme python3-psutil pandoc python3-coverage locales
+    eatmydata apt-get -y install git vim less python3-pip python3-virtualenv python3-pytest strace gdb valgrind time ncdu gnupg curl procps
+
+    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+    locale-gen
+    
+    chmod a+rX -R /etc/apt/sources.list.d
+    # cleaning /tmp that thoroughly might have side effects 
+    # rm -rf /tmp/* /var/tmp/*
+    apt-get clean
+    rm -rf /tmp/npm-* /tmp/nd-config* /tmp/startup* /var/tmp/npm-* /var/lib/apt/lists/*
+
+    # Create some additional bind mount directories present on various compute boxes we have
+    # access to, to ease deployment
+    mkdir -p /afs /inbox /ihome /opt /data /backup /apps /srv /scratch /idata
+    chmod a+rX /afs /inbox /ihome /opt /data /backup /apps /srv /scratch /idata
